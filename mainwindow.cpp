@@ -25,7 +25,7 @@
 #include <windows.h>
 #include <pdh.h>
 #include <pdhmsg.h>
-#include <qcustomplot.h>
+//#include <qcustomplot.h>
 using namespace std ;
 
 MainWindow::MainWindow(QWidget *parent)
@@ -38,13 +38,17 @@ void MainWindow::setupUI()
 {
     column  = 3;
     QTabWidget *tabWidget  = new QTabWidget(this);
+    QTabWidget *performancetab  = new QTabWidget(this);
     QWidget *centralWidget = new QWidget(this);
-    QWidget *tab1 = new QWidget(this);
-    QWidget *tab2 = new QWidget(this);
-    QWidget *tab3 = new QWidget(this);
+    QWidget *tab1  = new QWidget(this);
+    QWidget *tab2  = new QWidget(this);
+    QWidget *tab3  = new QWidget(this);
+    QWidget *tabp1 = new QWidget(this);
+    QWidget *tabp2 = new QWidget(this);
+    QWidget *tabp3 = new QWidget(this);
 
     setCentralWidget(centralWidget);
-
+//    customPlot = new QCustomPlot(this);
     Table = new QTableWidget(this);
     Table->setColumnCount(5);
     Table->setRowCount(1);
@@ -76,6 +80,9 @@ void MainWindow::setupUI()
     QToolButton *tabButton1     = new QToolButton();
     QToolButton *tabButton2     = new QToolButton();
     QToolButton *tabButton3     = new QToolButton();
+    QToolButton *perButton1     = new QToolButton();
+    QToolButton *perButton2     = new QToolButton();
+    QToolButton *perButton3     = new QToolButton();
 
     connect(refreshButton,  &QPushButton::clicked, this, &MainWindow::refreshProcesses);
     connect(terminateButton,&QPushButton::clicked, this, &MainWindow::terminateProcess);
@@ -86,15 +93,25 @@ void MainWindow::setupUI()
     connect(tabButton1, &QToolButton::clicked, [tabWidget]() {tabWidget->setCurrentIndex(0);});
     connect(tabButton2, &QToolButton::clicked, [tabWidget]() {tabWidget->setCurrentIndex(1);});
     connect(tabButton3, &QToolButton::clicked, [tabWidget]() {tabWidget->setCurrentIndex(2);});
+    connect(perButton1, &QToolButton::clicked, [performancetab]() {performancetab->setCurrentIndex(0);});
+    connect(perButton2, &QToolButton::clicked, [performancetab]() {performancetab->setCurrentIndex(1);});
+    connect(perButton3, &QToolButton::clicked, [performancetab]() {performancetab->setCurrentIndex(2);});
 
     QHBoxLayout *navBar = new QHBoxLayout;
     navBar->addWidget(tabButton1);
     navBar->addWidget(tabButton2);
     navBar->addWidget(tabButton3);
-
     tabWidget->addTab(tab1, "Processes");
     tabWidget->addTab(tab2, "Performance");
     tabWidget->addTab(tab3, "Other");
+
+    QVBoxLayout *perBar = new QVBoxLayout;
+    perBar->addWidget(perButton1);
+    perBar->addWidget(perButton2);
+    perBar->addWidget(perButton3);
+    performancetab->addTab(tabp1, "CPU Usage");
+    performancetab->addTab(tabp2, "RAM Usage");
+    performancetab->addTab(tabp3, "I/O Usage");
 
     QHBoxLayout *buttonLayout = new QHBoxLayout();
     buttonLayout->addWidget(refreshButton);
@@ -111,14 +128,16 @@ void MainWindow::setupUI()
     tab1Layout->addLayout(buttonLayout);
 
     QVBoxLayout *tab2Layout = new QVBoxLayout(tab2);
-    tab1Layout->addWidget(Table);
-    tab1Layout->addWidget(processTable);
-    tab1Layout->addLayout(buttonLayout);
+    tab2Layout->addWidget(performancetab);
+    tab2Layout->setContentsMargins(0, 0, 0, 0); // Set margins to 0
+    tab2Layout->setSpacing(0); // Set spacing to 0
+//    tab2Layout->addWidget(processTable);
+//    tab2Layout->addLayout(buttonLayout);
 
-    QVBoxLayout *tab3Layout = new QVBoxLayout(tab3);
-    tab1Layout->addWidget(Table);
-    tab1Layout->addWidget(processTable);
-    tab1Layout->addLayout(buttonLayout);
+//    QVBoxLayout *tab3Layout = new QVBoxLayout(tab3);
+//    tab3Layout->addWidget(Table);
+//    tab3Layout->addWidget(processTable);
+//    tab3Layout->addLayout(buttonLayout);
 //  setLayout(mainLayout);
 }
 double MainWindow::GetCpuUsage()

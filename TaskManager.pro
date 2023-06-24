@@ -1,20 +1,18 @@
-QT       += core gui
-INCLUDEPATH += path/to/qcustomplot
+QT       += core gui charts
+
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets printsupport
 CONFIG += c++17
-
+INCLUDEPATH += $$PWD
 LIBS += -lPdh
 LIBS += -lole32
 LIBS += -loleaut32
 
 SOURCES += \
     main.cpp \
-    mainwindow.cpp \
-    qcustomplot.cpp
+    mainwindow.cpp
 
 HEADERS += \
-    mainwindow.h \
-    qcustomplot.h
+    mainwindow.h
 
 FORMS += \
     mainwindow.ui

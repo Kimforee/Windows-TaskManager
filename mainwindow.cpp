@@ -1,5 +1,3 @@
-
-// mainwindow.cpp
 #include "mainwindow.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -25,7 +23,8 @@
 #include <windows.h>
 #include <pdh.h>
 #include <pdhmsg.h>
-//#include <qcustomplot.h>
+#include <QDateTime>
+#include <QtCharts>
 using namespace std ;
 
 MainWindow::MainWindow(QWidget *parent)
@@ -37,6 +36,8 @@ MainWindow::MainWindow(QWidget *parent)
 void MainWindow::setupUI()
 {
     column  = 3;
+    ttime = 0.0;
+    rtime = 0.0;
     QTabWidget *tabWidget  = new QTabWidget(this);
     QTabWidget *performancetab  = new QTabWidget(this);
     QWidget *centralWidget = new QWidget(this);
@@ -48,30 +49,63 @@ void MainWindow::setupUI()
     QWidget *tabp3 = new QWidget(this);
 
     setCentralWidget(centralWidget);
-//    customPlot = new QCustomPlot(this);
+    chartView = new QChartView(this);
+    ramView   = new QChartView(this);
+
+    cpuSeries = new QLineSeries();
+    ramSeries = new QLineSeries();
+
     Table = new QTableWidget(this);
-    Table->setColumnCount(5);
+    Table->setColumnCount(4);
     Table->setRowCount(1);
 
     timer = new QTimer(this);
     timer->setInterval(1000);
     timer->start();
 
-    QTableWidgetItem *verticalHeaderItem = new QTableWidgetItem("CPU");
+    QTableWidgetItem *verticalHeaderItem = new QTableWidgetItem("System");
     Table->setVerticalHeaderItem(0,verticalHeaderItem);
-    Table->verticalHeader  ()->setSectionResizeMode(QHeaderView::ResizeToContents);
     Table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     Table->verticalHeader  ()->resizeSection(0, 50);
     Table->horizontalHeader()->setVisible(false);
-    Table->setFixedHeight(30);
+    Table->verticalHeader()->setVisible(false);
+    Table->setFixedHeight(40);
+    Table->horizontalHeader()->setStyleSheet("background-color: #F2F2F2;"
+                                             "border-bottom: 1px solid #D9D9D9;"
+                                             "font-weight: bold;");
 
     processTable = new QTableWidget(this);
-    processTable->setColumnCount(8);
+    processTable->setColumnCount(7);
     processTable->setHorizontalHeaderLabels({"PID","Process Name","I/O Operation",
-                                             "CPU Usage","CPU Time","Elapsed Time",
+                                             "CPU Usage","CPU Time",
                                              "Memory Usage",
                                              "Private Usage"});
     processTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    processTable->horizontalHeader()->setStyleSheet("background-color: #F2F2F2;"
+                                                    "border: none;"
+                                                    "border-bottom: 1px solid #D9D9D9;"
+                                                    "font-weight: bold;");
+
+    QString normalStyle = "QPushButton {"
+                "padding: 0.5em 1em;"
+                "background: #efefef;"
+                "border-radius: 2px;"
+                "color: #444;"
+                "font-size: 1rem;"
+                "font-weight: 500;"
+                "letter-spacing: .2rem;"
+                "text-align: center;"
+                "outline: 2px;"
+                "border: 1px solid #D9D9D9;"
+                                        "}";
+
+    QString hoverStyle = "QPushButton:hover {"
+                         "background-color: #b3c1f0;"
+                         "color: white;"
+                         "}";
+    QString pressedStyle = "QPushButton:pressed {"
+                           "background-color: #738ce4;"
+                           "}";
 
     QPushButton *refreshButton  = new QPushButton("Refresh");
     QPushButton *terminateButton= new QPushButton("Terminate");
@@ -83,6 +117,11 @@ void MainWindow::setupUI()
     QToolButton *perButton1     = new QToolButton();
     QToolButton *perButton2     = new QToolButton();
     QToolButton *perButton3     = new QToolButton();
+
+    refreshButton->setStyleSheet(normalStyle + hoverStyle + pressedStyle);
+    terminateButton->setStyleSheet(normalStyle + hoverStyle + pressedStyle);
+    boostButton->setStyleSheet(normalStyle + hoverStyle + pressedStyle);
+    pauseButton->setStyleSheet(normalStyle + hoverStyle + pressedStyle);
 
     connect(refreshButton,  &QPushButton::clicked, this, &MainWindow::refreshProcesses);
     connect(terminateButton,&QPushButton::clicked, this, &MainWindow::terminateProcess);
@@ -129,16 +168,98 @@ void MainWindow::setupUI()
 
     QVBoxLayout *tab2Layout = new QVBoxLayout(tab2);
     tab2Layout->addWidget(performancetab);
-    tab2Layout->setContentsMargins(0, 0, 0, 0); // Set margins to 0
-    tab2Layout->setSpacing(0); // Set spacing to 0
-//    tab2Layout->addWidget(processTable);
-//    tab2Layout->addLayout(buttonLayout);
 
-//    QVBoxLayout *tab3Layout = new QVBoxLayout(tab3);
-//    tab3Layout->addWidget(Table);
-//    tab3Layout->addWidget(processTable);
-//    tab3Layout->addLayout(buttonLayout);
-//  setLayout(mainLayout);
+//  Layout for performance cpu usage
+    QVBoxLayout *cpugraphlay = new QVBoxLayout(tabp1);
+    cpugraphlay->addWidget(chartView);
+
+    chart = new QChart();
+    chart->addSeries(cpuSeries);
+    chart->legend()->hide();
+    chart->setTitle("CPU Usage");
+
+    axisX = new QValueAxis();
+    axisX->setTitleText("Time");
+    axisX->setRange(0.0,0.16);
+    chart->addAxis(axisX, Qt::AlignBottom);
+    cpuSeries->attachAxis(axisX);
+
+    QLinearGradient backgroundGradient;
+    backgroundGradient.setStart(QPointF(0, 0));
+    backgroundGradient.setFinalStop(QPointF(0, 1));
+    backgroundGradient.setColorAt(0.0, QRgb(0xf3f5fd));
+    backgroundGradient.setColorAt(1.0, QRgb(0xffffff));
+
+    backgroundGradient.setCoordinateMode(QGradient::ObjectBoundingMode);
+    chart->setBackgroundBrush(backgroundGradient);
+
+    QPen pen(QRgb(0x4869dc));
+    pen.setWidth(1);
+    cpuSeries->setPen(pen);
+
+    QValueAxis *axisY = new QValueAxis();
+    axisY->setGridLineVisible();
+    axisY->setRange(0.0,100.0);
+    axisY->setTitleText("Usage (%)");
+    chart->addAxis(axisY, Qt::AlignLeft);
+    cpuSeries->attachAxis(axisY);
+    chartView->setChart(chart);
+    chartView->setRenderHint(QPainter::Antialiasing);
+    chartView->setStyleSheet("background-color: #eae1f9;"
+                             "border-radius: 6px;"
+                             "border: 1px solid #D9D9D9;");
+
+    // axis colors
+    QPen axisPen(QRgb(0x28282B));
+    axisPen.setWidth(1);
+    axisX->setLinePen(axisPen);
+    axisY->setLinePen(axisPen);
+
+//Layout for performance RAM usage
+    QVBoxLayout *ramgraphlay = new QVBoxLayout(tabp2);
+    ramgraphlay->addWidget(ramView);
+    ramSeries->setPen(pen);
+
+    ramchart = new QChart();
+    ramchart->addSeries(ramSeries);
+    ramchart->legend()->hide();
+    ramchart->setTitle("RAM Usage");
+    ramView->setStyleSheet("background-color: #eae1f9;"
+                           "border-radius: 6px;"
+                           "border: 1px solid #D9D9D9;");
+    ramchart->setBackgroundBrush(backgroundGradient);
+
+    ramaxisX = new QValueAxis();
+    ramaxisX->setTitleText("Time");
+    ramaxisX->setRange(0.0,0.16);
+    ramchart->addAxis(ramaxisX, Qt::AlignBottom);
+    ramSeries->attachAxis(ramaxisX);
+
+    ramaxisY = new QValueAxis();
+    ramaxisY->setGridLineVisible();
+
+    ramaxisY->setTitleText("Usage (%)");
+    ramchart->addAxis(ramaxisY, Qt::AlignLeft);
+    ramSeries->attachAxis(ramaxisY);
+    ramView->setChart(ramchart);
+
+    // axis colors
+    QPen ramaxisPen(QRgb(0x28282B));
+    ramaxisPen.setWidth(1);
+    ramaxisX->setLinePen(ramaxisPen);
+    ramaxisY->setLinePen(ramaxisPen);
+}
+void MainWindow::updateGraph(double cpuUsage)
+{
+     ttime = ttime + 0.01;
+    // Add the data point to the series
+    cpuSeries->append(ttime, cpuUsage);
+    double xAxisRange = 0.16;
+    int Time = static_cast<int>(ttime*100);
+    if(Time%16 == 0)
+    {
+     axisX->setRange(ttime-0.08,ttime+xAxisRange);
+    }
 }
 double MainWindow::GetCpuUsage()
 {
@@ -148,10 +269,8 @@ double MainWindow::GetCpuUsage()
     status = PdhOpenQuery(NULL, 0, &query);
     if (status != ERROR_SUCCESS)
     {
-        // Error handling
         return -1.0;
     }
-
     // Add the counter to the query
     PDH_HCOUNTER counter;
     status = PdhAddCounter(query, L"\\Processor(_Total)\\% Processor Time", 0, &counter);
@@ -181,7 +300,6 @@ double MainWindow::GetCpuUsage()
         PdhCloseQuery(query);
         return -1.0;
     }
-
     // Close the query object
     PdhCloseQuery(query);
     return counterValue.doubleValue;
@@ -193,17 +311,28 @@ void MainWindow::RAM()
     MEMORYSTATUSEX memoryStatus;
     memoryStatus.dwLength = sizeof(memoryStatus);
     GlobalMemoryStatusEx(&memoryStatus);
-    // Total RAM
-    QString totalMemory = "TOTAL RAM: " + QString::number
-                         (static_cast<double>(memoryStatus.ullTotalPhys) / (1024.0 * 1024.0 * 1024.0), 'f', 2) + " GB";
-    QTableWidgetItem* totalMemoryItem = new QTableWidgetItem(totalMemory);
-    Table->setItem(0,2,totalMemoryItem);
-    // RAM Available
-    QString label = "AVAILABLE RAM: ";
-    QTableWidgetItem* availableMemoryItem = new QTableWidgetItem
-    (label+QString::number(static_cast<double>(memoryStatus.ullAvailPhys) / (1024 * 1024 * 1024),'f',2) + " GB");
-    Table->setItem(0,3,availableMemoryItem);
 
+    // Total RAM
+    QString totalMemory = QString::number(static_cast<double>(memoryStatus.ullTotalPhys) / (1024 * 1024 * 1024), 'f', 2);
+    QTableWidgetItem* totalMemoryItem = new QTableWidgetItem("Total RAM: "+totalMemory+" GB");
+    double totalram =totalMemory.toDouble();
+    Table->setItem(0,1,totalMemoryItem);
+
+    // RAM Available
+    QString memoryava = QString::number(static_cast<double>(memoryStatus.ullAvailPhys) / (1024 * 1024 * 1024), 'f', 2);
+    double avaram = memoryava.toDouble();
+    QTableWidgetItem* availableMemoryItem = new QTableWidgetItem("Available RAM: "+memoryava+ " GB");
+    Table->setItem(0,2,availableMemoryItem);
+    ramaxisY->setRange(0.0,totalram);
+    rtime = rtime + 0.01;
+    // Add the data point to the series
+    ramSeries->append(rtime, avaram);
+    double xAxisRange = 0.16;
+    int Time = static_cast<int>(rtime*100);
+    if(Time%16 == 0)
+    {
+        ramaxisX->setRange(rtime-0.08,rtime+xAxisRange);
+    }
 }
 void MainWindow::pausetimer()
 {
@@ -224,22 +353,20 @@ int MainWindow::refreshProcesses()
     PROCESSENTRY32 pe32;
     pe32.dwSize = sizeof(PROCESSENTRY32);
 
-
     double cpuUsage = GetCpuUsage();
+
     if (cpuUsage >= 0)
     {
-        // Display or use the CPU usage value
-        qDebug() << "CPU Usage: " << cpuUsage << "%";
+        qDebug() << "CPU Usage :" << cpuUsage << " %";
     }
     else
     {
-        // Error occurred while retrieving CPU usage
         qDebug() << "Error retrieving CPU usage.";
     }
     QTableWidgetItem *cpuUsageItem = new QTableWidgetItem
-        (QString::number(cpuUsage, 'f', 1) + "%");
-    Table->setItem(0,1,cpuUsageItem);
-
+        ("CPU Usage: "+QString::number(cpuUsage, 'f', 1) + " %");
+    Table->setItem(0,0,cpuUsageItem);
+    updateGraph(cpuUsage);
     RAM();
 
     // Calculate total number of Processors
@@ -249,7 +376,7 @@ int MainWindow::refreshProcesses()
     processorCount = systemInfo.dwNumberOfProcessors;
     QTableWidgetItem *processor = new QTableWidgetItem
     (QString::number(processorCount, 'f', 1) + " Processors");
-    Table->setItem(0,4,processor);
+    Table->setItem(0,3,processor);
 
     // Get the memory usage for each process
     DWORD processes[1024], cbNeeded;
@@ -265,10 +392,10 @@ int MainWindow::refreshProcesses()
                 if (GetProcessMemoryInfo(hProcess, (PROCESS_MEMORY_COUNTERS*)&memoryInfo, sizeof(memoryInfo)))
                 {
                     QTableWidgetItem* memoryUsageItem = new QTableWidgetItem(QString::number(memoryInfo.WorkingSetSize /(1024 * 1024),'f',2) + " MB");
-                    processTable->setItem(i, 6, memoryUsageItem);
+                    processTable->setItem(i, 5, memoryUsageItem);
 
                     QTableWidgetItem* privateUsageItem = new QTableWidgetItem(QString::number(memoryInfo.PrivateUsage / (1024 * 1024), 'f', 2) + " MB");
-                    processTable->setItem(i, 7, privateUsageItem);
+                    processTable->setItem(i, 6, privateUsageItem);
 
 //                    QTableWidgetItem* pagefileUsageItem = new QTableWidgetItem(QString::number(memoryInfo.PagefileUsage / (1024 * 1024), 'f', 2) + " MB");
 //                    processTable->setItem(i, 10, pagefileUsageItem);
@@ -347,13 +474,13 @@ int MainWindow::refreshProcesses()
                 currentTimeUL.LowPart = currentTime.dwLowDateTime;
                 currentTimeUL.HighPart = currentTime.dwHighDateTime;
 
-                // Calculate the total elapsed time in 100-nanosecond intervals
+                // Calculate the total elapsed time
                 ULONGLONG totalElapsedTime = (currentTimeUL.QuadPart -
                                               createTimeUL.QuadPart)/100;
 
                 ULONGLONG totalElapsedTimes = totalElapsedTime/1e4;
                 totalElapsedTimes = static_cast<double>(totalElapsedTimes);
-                double cpuUsage = 0.0;  // Default value if totalElapsedTime is zero
+                double cpuUsage = 0.0;
 
                 // Calculate CPU usage of a process
                 if (totalElapsedTimes != 0.0) {
@@ -366,19 +493,11 @@ int MainWindow::refreshProcesses()
 
                 // Set values in table using QTableWidgetItem
                 QTableWidgetItem *cpuUsageItem = new QTableWidgetItem
-                    (QString::number(cpuUsage, 'f', 1) + "%");
-//                QTableWidgetItem *kernel = new QTableWidgetItem
-//                    (QString::number(kernelTimeSec, 'f', 1) + "ns");
-//                QTableWidgetItem *user = new QTableWidgetItem
-//                    (QString::number(userTimeSec, 'f', 1) + "ns");
-                QTableWidgetItem *e1 = new QTableWidgetItem
-                    (QString::number(totalCPUTime, 'f', 1) + "ms");
-                QTableWidgetItem *e2 = new QTableWidgetItem
-                    (QString::number(totalElapsedTimes, 'f', 1) + "ms");
-
+                    (QString::number(cpuUsage, 'f', 1) + " %");
+                QTableWidgetItem *totalCPUTimeitem = new QTableWidgetItem
+                    (QString::number(totalCPUTime, 'f', 1) + " ms");
                 processTable->setItem(row, 3, cpuUsageItem);  
-                processTable->setItem(row, 4, e1);
-                processTable->setItem(row, 5, e2);
+                processTable->setItem(row, 4, totalCPUTimeitem);
             }
 
             DWORD  ioUsageItem = GetProcessUsageIO(pe32.th32ProcessID);
@@ -419,6 +538,7 @@ void MainWindow::BoostProcess()
     else
     {
         qDebug() << "Failed to attain privileges ----------------";
+        QMessageBox::information(this, "Permission Needed", "Failed to attain privileges");
     }
     int selectedRow = processTable->currentRow();
     if (selectedRow >= 0)
@@ -426,55 +546,51 @@ void MainWindow::BoostProcess()
         QString pidString = processTable->item(selectedRow, 0)->text();
         DWORD pid = pidString.toULong();
         HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid);
+        HANDLE BoostProcess = OpenProcess(PROCESS_SET_INFORMATION, FALSE, pid);
         if (hProcess != NULL)
         {
             BOOL boostvalue;
             if(GetProcessPriorityBoost(hProcess , &boostvalue))
               {
-                qDebug() << "inside step 1 bro" << boostvalue << "----------------";
                 BOOL statechange = !boostvalue;
-                qDebug() << "inside step 1.2 bro and pid is" << pid << "----------------";
-                if (SetProcessPriorityBoost(GetCurrentProcess(), 0))
+                if (SetProcessPriorityBoost(BoostProcess, statechange))
                 {
-                    qDebug() << "inside step 2 bro" << statechange << "----------------";
-                    QTableWidgetItem *selectedpid = processTable->item(selectedRow, 0);
-                    QColor highlightColor = statechange ? Qt::yellow : Qt::white;
+                    QTableWidgetItem *selectedpid = processTable->item(selectedRow,0);
+                    QColor highlightColor = statechange ? Qt::yellow : Qt::red;
                     selectedpid->setBackground(highlightColor);
                     if(statechange)
                     {
                         QMessageBox::information(this, "Boost", "Process Boosted successfully.");
-                        refreshProcesses();
                     }
                     else{
                         QMessageBox::information(this, "Unboost", "Process Unboosted successfully.");
                     }
                 }
                 else{
-                    QMessageBox::warning(this, "Boost", "Failed to set priority.");
-                    qDebug() << "failed to set priority" << statechange << "----------------";
+                    QMessageBox::warning(this, "Boost Failed", "Failed to set priority.");
                     DWORD errorCode = GetLastError();
                     LPWSTR errorMessage = nullptr;
                     FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
                                   NULL, errorCode, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
                                   reinterpret_cast<LPWSTR>(&errorMessage), 0, NULL);
-                    QMessageBox::critical(this, "Boost", QString("Failed to set process priority boost. Error: %1").arg(QString::fromWCharArray(errorMessage)));
+                    QMessageBox::critical(this, "Boost Failed", QString("Failed to set process boost. Error: %1").arg(QString::fromWCharArray(errorMessage)));
                     LocalFree(errorMessage);
                 }
             }
             else
             {
-                QMessageBox::warning(this, "Boost", "Failed to Boost the process.");
+                QMessageBox::warning(this, "Boost Failed", "Failed to Boost the process.");
             }
             CloseHandle(hProcess);
         }
         else
         {
-            QMessageBox::warning(this, "Boost", "Failed to open the process.");
+            QMessageBox::warning(this, "Boost Failed", "Failed to open the process.");
         }
     }
     else
     {
-        QMessageBox::warning(this, "Boost", "No process selected.");
+        QMessageBox::warning(this, "Boost Failed", "No process selected.");
     }
 }
 void MainWindow::terminateProcess()

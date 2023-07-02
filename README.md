@@ -55,4 +55,4 @@ Submit a pull request with a detailed description of your changes.
 Acknowledgements
 https://stackoverflow.com (cpu usage, memory usage)
 https://learn.microsoft.com (about windows api)
-https://chat.openai.com (qt widgets)
+https://chat.openai.com and https://doc.qt.io/qt-6/widget-classes.html#graphics-view-classes (qt widgets)

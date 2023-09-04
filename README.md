@@ -1,7 +1,7 @@
 # Windows-TaskManager using QtCreator
 
 
-downlaod the application - https://drive.google.com/file/d/1PRsYB0yupar__kKxzwJrsXOclXK8Tjai/view?usp=sharing
+download the application - https://drive.google.com/file/d/1PRsYB0yupar__kKxzwJrsXOclXK8Tjai/view?usp=sharing
 
 
 1) First page with process monitering 2) CPU usage live graph

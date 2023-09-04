@@ -1,4 +1,9 @@
 # Windows-TaskManager using QtCreator
+
+
+downlaod the application - https://drive.google.com/file/d/1PRsYB0yupar__kKxzwJrsXOclXK8Tjai/view?usp=sharing
+
+
 1) First page with process monitering 2) CPU usage live graph
 ![1,2](https://github.com/Kimforee/Windows-TaskManager/assets/97099667/48e322db-dc53-4fd5-9e06-e1fc3d3898f5)
 3) RAM usage live Graph 4) Process Boosting (yellow coloured process)
